@@ -172,4 +172,50 @@ const slider = (() => {
     return {createSlider};
 })();
 
-module.exports = {switchButton, slider};
+/**
+ * Creates a custiom text input component.
+ * @function
+ * @param {Object} options - Options for configuring the text input.
+ * @param {Function} [options.onChange] - Optional callback function to be executed when the text input value changes.
+ * @returns {HTMLElement} - The text input component as an HTML element. setValue function is exposed to change the value of the text input.
+ */
+
+// TODO !!
+const textInput = (() => {
+    const createTextInput = ({onChange = null, value = ''}) => {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = value;
+        input.style.width = '100%';
+        input.style.height = '30px';
+        input.style.padding = '5px';
+        input.style.border = '1px solid var(--gm-primary-color)';
+        input.style.borderRadius = '5px';
+        input.style.margin = '5px 0';
+        input.style.boxSizing = 'border-box';
+
+        input.onchange = (event) => {
+            if (onChange) {
+                onChange(event);
+            }
+        };
+
+        input.oninput = (event) => {
+            if (onChange) {
+                onChange(event);
+            }
+        };
+
+        // Programmatically set the value of the text input
+        const setValue = (newValue) => {
+            input.value = newValue;
+        };
+
+        input.setValue = setValue;
+        return input;
+    };
+
+    return {createTextInput};
+})();
+
+module.exports = {switchButton, slider, textInput};

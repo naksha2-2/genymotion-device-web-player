@@ -5,11 +5,20 @@
     .gm {
         &-charging-group {
             margin-top: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
 
-            .gm-charging-checkbox {
-                width: 15px;
-                float: left;
-                margin: 0;
+            > div:nth-child(2) {
+                flex-grow: 1;
+            }
+
+            .gm-charging-image {
+                width: 35px;
+                height: 60px;
+                /* TODO change pour ic_battery-empty et gerer la couleur pour le theme */
+                background: url('../assets/images/ic-battery_empty.svg') no-repeat center;
+                background-size: 32px;
             }
 
             .gm-charging-status {
@@ -25,24 +34,23 @@
         }
 
         &-charge-level-group {
-            height: 75px;
             display: flex;
             justify-content: space-around;
             align-items: center;
+            margin: 15px 0 30px;
 
-            * {
-                width: 33%;
-                text-align: center;
+            > div:nth-child(2) {
+                flex-grow: 1;
+                padding: 0 30px;
             }
 
             .gm-charge-image {
                 position: relative;
                 width: 35px;
                 height: 60px;
-                /* TODO */
+                /* TODO change pour ic_battery-empty et gerer la couleur pour le theme */
                 background: url('../assets/images/ic-battery_empty.svg') no-repeat center;
                 background-size: 32px;
-                margin: 0 auto;
 
                 .gm-charge-image-overlay {
                     position: absolute;

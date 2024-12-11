@@ -1,6 +1,7 @@
 'use strict';
 
 const OverlayPlugin = require('./util/OverlayPlugin');
+const {slider, switchButton} = require('./util/components');
 
 /**
  * Instance battery plugin.
@@ -38,9 +39,40 @@ module.exports = class Battery extends OverlayPlugin {
                 return;
             }
 
-            this.updateUIBatteryChargingState(values[0] !== 'discharging');
-            this.onBatteryLevelChange(values[1]);
+            // Excecute this only once at start to set the initial value
+            if (this.state.isCharging === null) {
+                this.state.isCharging = values[0] !== 'discharging';
+            }
+            this.chargeSlider.setValue(values[1]);
+            this.chargeInput.value = values[1];
+            this.updateUIBatteryChargingPercent(values[1]);
         });
+
+        this.state = new Proxy(
+            {
+                isCharging: null,
+            },
+            {
+                set: (state, prop, value) => {
+                    const oldValue = state[prop];
+                    state[prop] = value;
+
+                    switch (prop) {
+                        case 'isCharging':
+                            // todo get the value from the switch button
+                            if (oldValue !== value) {
+                                this.chargingInput.setState(value);
+                                this.sendDataToInstance();
+                                this.updateUIBatteryChargingState();
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                    return true;
+                },
+            },
+        );
     }
 
     /**
@@ -67,15 +99,10 @@ module.exports = class Battery extends OverlayPlugin {
      */
     renderWidget() {
         // Create elements
-        this.widget = document.createElement('div');
-        this.container = document.createElement('div');
 
-        // Generate title
-        const title = document.createElement('div');
-        title.className = 'gm-title';
-        title.innerHTML = this.i18n.BATTERY_TITLE || 'Battery';
-        this.container.appendChild(title);
-
+        const {modal, container} = this.createTemplateModal(this.i18n.BATTERY_TITLE || 'Battery', 'gm-battery-plugin');
+        this.widget = modal;
+        this.container = container;
         // Generate input rows
         const inputs = document.createElement('div');
         inputs.className = 'gm-inputs';
@@ -95,15 +122,6 @@ module.exports = class Battery extends OverlayPlugin {
 
         // Setup
         this.container.appendChild(inputs);
-        this.widget.className = 'gm-overlay gm-battery-plugin gm-hidden';
-
-        // Add close button
-        const close = document.createElement('div');
-        close.onclick = this.toggleWidget.bind(this);
-        close.className = 'gm-close-btn';
-
-        this.widget.appendChild(close);
-        this.widget.appendChild(this.container);
 
         this.instance.root.appendChild(this.widget);
     }
@@ -115,17 +133,25 @@ module.exports = class Battery extends OverlayPlugin {
      */
     createChargingSection() {
         const chargingGroup = document.createElement('div');
-        this.chargingInput = document.createElement('input');
         this.chargingStatus = document.createElement('div');
         chargingGroup.className = 'gm-charging-group';
-        this.chargingInput.type = 'checkbox';
-        this.chargingInput.className = 'gm-charging-checkbox';
-        this.chargingInput.onchange = this.toggleChargingState.bind(this);
-        this.chargingInput.checked = true;
+
+        // TODO: implement svg battery charging icon
+        // Charging image
+        this.chargingImage = document.createElement('div');
+        this.chargingImage.className = 'gm-charging-image';
+        chargingGroup.appendChild(this.chargingImage);
+
+        //Switch button for charging state
+        this.chargingInput = switchButton.createSwitch({
+            onChange: (value) => {
+                this.state.isCharging = value;
+            },
+        });
         this.chargingStatus.className = 'gm-charging-status';
         this.chargingStatus.innerHTML = 'Discharging';
-        chargingGroup.appendChild(this.chargingInput);
         chargingGroup.appendChild(this.chargingStatus);
+        chargingGroup.appendChild(this.chargingInput);
 
         return chargingGroup;
     }
@@ -139,34 +165,8 @@ module.exports = class Battery extends OverlayPlugin {
         const chargeGroup = document.createElement('div');
         chargeGroup.className = 'gm-charge-level-group';
 
-        const inputGroup = document.createElement('div');
-        this.chargeInput = document.createElement('input');
-        const chargeInputLabel = document.createElement('span');
-        chargeInputLabel.innerHTML = '%';
-        this.chargeInput.className = 'gm-charge-input';
-        this.chargeInput.type = 'number';
-        this.chargeInput.value = 50;
-        this.chargeInput.max = 100;
-        this.chargeInput.min = 0;
-        this.chargeInput.step = 1;
-        this.chargeInput.oninput = this.onBatteryLevelChangeEvent.bind(this);
-        inputGroup.appendChild(this.chargeInput);
-        inputGroup.appendChild(chargeInputLabel);
-        chargeGroup.appendChild(inputGroup);
-
-        const sliderGroup = document.createElement('div');
-        this.chargeSlider = document.createElement('input');
-        this.chargeSlider.className = 'gm-charge-slider';
-        this.chargeSlider.type = 'range';
-        this.chargeSlider.orient = 'vertical';
-        this.chargeSlider.max = 100;
-        this.chargeSlider.min = 0;
-        this.chargeSlider.step = 1;
-        this.chargeSlider.value = 50;
-        this.chargeSlider.onchange = this.onBatteryLevelChangeEvent.bind(this);
-        sliderGroup.appendChild(this.chargeSlider);
-        chargeGroup.appendChild(sliderGroup);
-
+        // Charge level image
+        //TOdo implement svg battery icon and color
         const chargeImageGroup = document.createElement('div');
         this.chargeImage = document.createElement('div');
         this.chargeImageOverlay = document.createElement('div');
@@ -177,6 +177,52 @@ module.exports = class Battery extends OverlayPlugin {
         this.chargeImage.appendChild(this.chargeImageOverlay);
         chargeGroup.appendChild(chargeImageGroup);
 
+        const sliderGroup = document.createElement('div');
+
+        // slider range for battery level
+        this.chargeSlider = slider.createSlider({
+            min: 0,
+            max: 100,
+            value: 20,
+            onChange: (event) => {
+                this.chargeInput.value = event.target.value;
+                this.updateUIBatteryChargingPercent(event.target.value);
+                this.sendDataToInstance();
+            },
+            onCursorMove: (event) => {
+                // update UI withous sending data to instance
+                this.chargeInput.value = event.target.value;
+                this.updateUIBatteryChargingPercent(event.target.value);
+            },
+        });
+
+        sliderGroup.appendChild(this.chargeSlider);
+        chargeGroup.appendChild(sliderGroup);
+
+        // Charge level input
+        const inputGroup = document.createElement('div');
+        this.chargeInput = document.createElement('input');
+        const chargeInputLabel = document.createElement('span');
+        chargeInputLabel.innerHTML = '%';
+        this.chargeInput.className = 'gm-charge-input';
+        this.chargeInput.type = 'number';
+        this.chargeInput.value = 50;
+        this.chargeInput.max = 100;
+        this.chargeInput.min = 0;
+        this.chargeInput.step = 1;
+        this.chargeInput.oninput = (event) => {
+            this.chargeSlider.setValue(event.target.value);
+            this.updateUIBatteryChargingPercent(event.target.value);
+        };
+        this.chargeInput.onchange = (event) => {
+            this.chargeSlider.setValue(event.target.value);
+            this.updateUIBatteryChargingPercent(event.target.value);
+            this.sendDataToInstance();
+        };
+        inputGroup.appendChild(this.chargeInput);
+        inputGroup.appendChild(chargeInputLabel);
+        chargeGroup.appendChild(inputGroup);
+
         return chargeGroup;
     }
 
@@ -185,43 +231,17 @@ module.exports = class Battery extends OverlayPlugin {
      */
 
     /**
-     * Toggle Instance charging status between 'charging' and 'discharging';
-     */
-    toggleChargingState() {
-        this.chargingStatus.classList.toggle('charging');
-
-        const chargingLabel = this.i18n.BATTERY_CHARGING || 'Charging';
-        const dischargingLabel = this.i18n.BATTERY_DISCHARGING || 'Discharging';
-
-        this.chargingStatus.innerHTML = this.chargingInput.checked ? chargingLabel : dischargingLabel;
-        this.sendDataToInstance();
-    }
-
-    /**
      * Update widget charging state UI.
      *
      * @param {boolean} charging Whether or not the battery is charging.
      */
-    updateUIBatteryChargingState(charging) {
-        this.chargingInput.checked = charging;
-        this.chargingStatus.classList[charging ? 'add' : 'remove']('charging');
+    updateUIBatteryChargingState() {
+        this.chargingStatus.classList[this.state.isCharging ? 'add' : 'remove']('charging');
 
         const chargingLabel = this.i18n.BATTERY_CHARGING || 'Charging';
         const dischargingLabel = this.i18n.BATTERY_DISCHARGING || 'Discharging';
 
-        this.chargingStatus.innerHTML = charging ? chargingLabel : dischargingLabel;
-    }
-
-    /**
-     * Handle battery level change events (slider & text input).
-     *
-     * @param {Event} event Event.
-     */
-    onBatteryLevelChangeEvent(event) {
-        const value = Number(event.target.value);
-        if (this.onBatteryLevelChange(value)) {
-            this.sendDataToInstance();
-        }
+        this.chargingStatus.innerHTML = this.state.isCharging ? chargingLabel : dischargingLabel;
     }
 
     /**
@@ -230,16 +250,14 @@ module.exports = class Battery extends OverlayPlugin {
      * @param  {number}  value Battery level.
      * @return {boolean}       Whether or not battery level has been applied.
      */
-    onBatteryLevelChange(value) {
+    updateUIBatteryChargingPercent(value) {
         value = Number(value);
         if (Number.isNaN(value)) {
             return false;
         }
 
         value = Math.min(Math.max(0, value), 100);
-        this.chargeSlider.value = value;
-        this.chargeInput.value = value;
-        this.chargeImageOverlay.style.cssText = 'height: ' + (value * 0.7 + 4) + '%;';
+        this.chargeImageOverlay.style.cssText = 'height: ' + (value * 0.7 + 4.5) + '%;';
         return true;
     }
 
@@ -248,7 +266,7 @@ module.exports = class Battery extends OverlayPlugin {
      */
     sendDataToInstance() {
         const level = Number(this.chargeInput.value);
-        const charging = this.chargingInput.checked ? 'charging' : 'discharging';
+        const charging = this.state.isCharging ? 'charging' : 'discharging';
         const json = {
             channel: 'battery',
             messages: ['set state level ' + level, 'set state status ' + charging],

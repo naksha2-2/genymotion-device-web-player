@@ -540,6 +540,7 @@ module.exports = class DeviceRenderer {
                 '<div class="gm-error-text">Aw, snap!<br/>Connection failed.<p>Check your internet ' +
                 'connection & firewall rules.{DOC_AVAILABLE}</p></div>';
             const div = document.createElement('div');
+            //TODO check gm-overlay-cant-connect
             div.classList.add('gm-overlay-cant-connect');
             div.classList.add('gm-video-overlay');
             this.videoWrapper.prepend(div);
